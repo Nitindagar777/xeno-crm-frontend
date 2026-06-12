@@ -1,30 +1,76 @@
 import React from 'react';
 import { useLocation, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAgent } from '../../context/AgentContext';
-import { Sparkles, MessageSquareDot } from 'lucide-react';
+import { getWorkspaces } from '../../api/workspace.api';
+import { Sparkles, Layers } from 'lucide-react';
 
 export default function Topbar() {
+  const queryClient = useQueryClient();
   const { togglePanel, isOpen } = useAgent();
   const location = useLocation();
   const params = useParams();
 
+  const activeWsId = localStorage.getItem('xeno_workspace_id');
+
+  // Fetch workspaces list sharing cache
+  const { data: workspacesData } = useQuery({
+    queryKey: ['workspaces-list'],
+    queryFn: getWorkspaces,
+    refetchOnWindowFocus: false
+  });
+
+  const workspaces = workspacesData?.data || [];
+
+  const handleWorkspaceChange = (e) => {
+    const selectedId = e.target.value;
+    const selected = workspaces.find(w => w._id === selectedId);
+    if (selected) {
+      localStorage.setItem('xeno_workspace_id', selected._id);
+      localStorage.setItem('xeno_workspace_name', selected.name);
+      queryClient.invalidateQueries();
+      window.location.reload(); // Force reload to cleanly reset API headers and context
+    }
+  };
+
   // Dynamic route-to-title resolver
   const getPageTitle = () => {
     const path = location.pathname;
+    if (path.startsWith('/workspace')) return 'Your Workspace';
     if (path.startsWith('/dashboard')) return 'Dashboard Overview';
     if (path.startsWith('/customers')) return 'Customer Directory';
     if (path.startsWith('/segments')) return 'Target Audiences';
     if (path.startsWith('/campaigns/')) return 'Campaign Analytics';
     if (path.startsWith('/campaigns')) return 'Marketing Campaigns';
+    if (path.startsWith('/history')) return 'Message History';
     return 'XenoCRM';
   };
 
   return (
     <header className="fixed top-0 right-0 left-64 h-16 bg-surface/85 backdrop-blur-md border-b border-border flex items-center justify-between px-8 z-20">
-      {/* Title */}
-      <h1 className="text-lg font-bold text-text-primary tracking-tight">
-        {getPageTitle()}
-      </h1>
+      {/* Title & Workspace Selector */}
+      <div className="flex items-center space-x-4">
+        <h1 className="text-lg font-bold text-text-primary tracking-tight">
+          {getPageTitle()}
+        </h1>
+        
+        {activeWsId && workspaces.length > 0 && (
+          <div className="flex items-center space-x-1.5 border-l border-border/80 pl-4">
+            <Layers className="h-3.5 w-3.5 text-text-secondary" />
+            <select
+              value={activeWsId}
+              onChange={handleWorkspaceChange}
+              className="bg-surface-elevated/40 hover:bg-surface-elevated border border-border rounded-lg text-xs py-1 px-2 text-text-primary outline-none focus:border-primary font-semibold select-none cursor-pointer max-w-[160px] truncate"
+            >
+              {workspaces.map((w) => (
+                <option key={w._id} value={w._id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
 
       {/* Actions */}
       <div className="flex items-center space-x-4">

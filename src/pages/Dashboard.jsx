@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getOverview } from '../api/stats.api';
 import { getInsights } from '../api/agent.api';
@@ -16,7 +16,8 @@ import {
   Sparkles,
   ArrowRight,
   TrendingUp,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import {
   BarChart,
@@ -42,13 +43,24 @@ export default function Dashboard() {
     refetchOnWindowFocus: false
   });
 
+  const forceRefreshRef = useRef(false);
+
   // Fetch AI Insights
-  const { data: insightsData, isLoading: insightsLoading } = useQuery({
+  const { data: insightsData, isLoading: insightsLoading, refetch: refetchInsights, isRefetching: insightsRefetching } = useQuery({
     queryKey: ['dashboard-insights'],
-    queryFn: getInsights,
+    queryFn: async () => {
+      const result = await getInsights(forceRefreshRef.current);
+      forceRefreshRef.current = false; // reset after call
+      return result;
+    },
     refetchOnWindowFocus: false, // Prevent spamming Gemini on window focus
-    staleTime: 5 * 60 * 1000 // Cache for 5 minutes
+    staleTime: Infinity // Only fetches on first mount or when manually refetched
   });
+
+  const handleRefreshInsights = () => {
+    forceRefreshRef.current = true;
+    refetchInsights();
+  };
 
   const handleStartCampaign = (prompt) => {
     openPanel();
@@ -78,7 +90,7 @@ export default function Dashboard() {
             {getGreeting()}, {user?.name.split(' ')[0] || 'Marketer'}
           </h2>
           <p className="text-xs text-text-secondary mt-1">
-            Here's the performance overview for Lumière Brand campaigns today.
+            Here's the performance overview for {localStorage.getItem('xeno_workspace_name') || 'Lumière Brand'} campaigns today.
           </p>
         </div>
         
@@ -97,25 +109,21 @@ export default function Dashboard() {
               title="Total Shoppers"
               value={overview.totalCustomers || 0}
               icon={Users}
-              trend={overview.totalCampaigns > 0 ? { value: 4.8, isPositive: true } : null}
             />
             <StatCard
               title="Campaigns Executed"
               value={overview.totalCampaigns || 0}
               icon={Send}
-              trend={overview.totalCampaigns > 0 ? { value: 12.5, isPositive: true } : null}
             />
             <StatCard
               title="Avg Delivery Rate"
               value={formatPercentage(overview.avgDeliveryRate || 0)}
               icon={CheckCircle}
-              trend={overview.totalCampaigns > 0 ? { value: 1.2, isPositive: true } : null}
             />
             <StatCard
               title="Avg Open Rate"
               value={formatPercentage(overview.avgOpenRate || 0)}
               icon={Eye}
-              trend={overview.totalCampaigns > 0 ? { value: 0.5, isPositive: false } : null}
             />
           </>
         )}
@@ -175,15 +183,25 @@ export default function Dashboard() {
                 <Sparkles className="h-4.5 w-4.5 text-primary" />
                 <span>Proactive Campaign Insights</span>
               </h4>
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={handleRefreshInsights}
+                  disabled={insightsLoading || insightsRefetching}
+                  className="p-1 text-text-secondary hover:text-text-primary hover:bg-surface-elevated/50 rounded-lg transition-all disabled:opacity-50 flex items-center justify-center"
+                  title="Refresh Insights"
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${(insightsLoading || insightsRefetching) ? 'animate-spin text-primary' : ''}`} />
+                </button>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                </span>
+              </div>
             </div>
 
             {/* Scrollable list */}
             <div className="overflow-y-auto space-y-3 flex-1 pr-1.5 scrollbar-thin">
-              {insightsLoading ? (
+              {(insightsLoading || insightsRefetching) ? (
                 Array(3).fill(0).map((_, idx) => (
                   <div key={idx} className="h-20 bg-surface-elevated animate-pulse rounded-xl" />
                 ))

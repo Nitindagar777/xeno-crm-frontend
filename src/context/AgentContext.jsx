@@ -124,7 +124,7 @@ export const AgentProvider = ({ children }) => {
     }, 1500);
   };
 
-  const sendToAgent = async (userText) => {
+  const sendToAgentWithContext = async (userText, customContext) => {
     if (!userText.trim()) return;
 
     // 1. Add user message
@@ -142,7 +142,7 @@ export const AgentProvider = ({ children }) => {
     }]);
 
     try {
-      const response = await sendMessage(userText, agentContext);
+      const response = await sendMessage(userText, customContext || agentContext);
 
       // Remove thinking loader and add agent reply
       setMessages((prev) => prev.filter(m => m.id !== thinkingId));
@@ -198,6 +198,10 @@ export const AgentProvider = ({ children }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const sendToAgent = async (userText) => {
+    await sendToAgentWithContext(userText, agentContext);
   };
 
   const approveAgentStep = async (step, editedData = null) => {
@@ -304,6 +308,8 @@ export const AgentProvider = ({ children }) => {
     isOpen,
     messages,
     agentContext,
+    setAgentContext,
+    updateAgentContext,
     isLoading,
     suggestions,
     togglePanel,
@@ -312,6 +318,7 @@ export const AgentProvider = ({ children }) => {
     addMessage,
     clearMessages,
     sendToAgent,
+    sendToAgentWithContext,
     approveAgentStep,
     rejectAgentStep,
     showConfetti,

@@ -34,11 +34,13 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     const res = await apiLogin(email, password);
     if (res.success) {
+      localStorage.removeItem('xeno_workspace_id');
+      localStorage.removeItem('xeno_workspace_name');
       localStorage.setItem('xeno_token', res.data.token);
       localStorage.setItem('xeno_user', JSON.stringify(res.data.user));
       setToken(res.data.token);
       setUser(res.data.user);
-      navigate('/dashboard');
+      navigate('/workspace');
     }
     return res;
   };
@@ -46,11 +48,13 @@ export const AuthProvider = ({ children }) => {
   const register = async (name, email, password) => {
     const res = await apiRegister(name, email, password);
     if (res.success) {
+      localStorage.removeItem('xeno_workspace_id');
+      localStorage.removeItem('xeno_workspace_name');
       localStorage.setItem('xeno_token', res.data.token);
       localStorage.setItem('xeno_user', JSON.stringify(res.data.user));
       setToken(res.data.token);
       setUser(res.data.user);
-      navigate('/dashboard');
+      navigate('/workspace');
     }
     return res;
   };
@@ -58,11 +62,13 @@ export const AuthProvider = ({ children }) => {
   const loginWithGoogle = async (credential) => {
     const res = await apiGoogleLogin(credential);
     if (res.success) {
+      localStorage.removeItem('xeno_workspace_id');
+      localStorage.removeItem('xeno_workspace_name');
       localStorage.setItem('xeno_token', res.data.token);
       localStorage.setItem('xeno_user', JSON.stringify(res.data.user));
       setToken(res.data.token);
       setUser(res.data.user);
-      navigate('/dashboard');
+      navigate('/workspace');
     }
     return res;
   };
@@ -70,6 +76,8 @@ export const AuthProvider = ({ children }) => {
   const logout = () => {
     localStorage.removeItem('xeno_token');
     localStorage.removeItem('xeno_user');
+    localStorage.removeItem('xeno_workspace_id');
+    localStorage.removeItem('xeno_workspace_name');
     setToken(null);
     setUser(null);
     navigate('/login');

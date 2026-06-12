@@ -2,10 +2,10 @@ import React, { useState, useRef } from 'react';
 import { UploadCloud, CheckCircle2, AlertTriangle, AlertCircle, FileText, Download, Plus, X } from 'lucide-react';
 import Modal from '../ui/Modal';
 import Button from '../ui/Button';
-import { importCSV } from '../../api/customer.api';
+import { importCSV, importPreview } from '../../api/customer.api';
 import toast from 'react-hot-toast';
 
-export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
+export default function CSVImportModal({ isOpen, onClose, onImportSuccess, uploadedFields = [] }) {
   const [step, setStep] = useState(1); // 1 = Upload, 2 = Preview, 3 = Results
   const [file, setFile] = useState(null);
   const [previewRows, setPreviewRows] = useState([]);
@@ -14,8 +14,8 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
 
   // Custom column state
   const [customColumns, setCustomColumns] = useState([]);
-  const [isAddingCol, setIsAddingCol] = useState(false);
-  const [newColName, setNewColName] = useState('');
+  const [fileHeaders, setFileHeaders] = useState([]);
+  const [mapping, setMapping] = useState({});
   
   const fileInputRef = useRef(null);
 
@@ -26,43 +26,9 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
     setPreviewRows([]);
     setResults(null);
     setCustomColumns([]);
-    setIsAddingCol(false);
-    setNewColName('');
+    setFileHeaders([]);
+    setMapping({});
     onClose();
-  };
-
-  // Add custom column
-  const handleSaveCustomColumn = (e) => {
-    e.preventDefault();
-    const cleanName = newColName.trim().toLowerCase();
-    if (!cleanName) return;
-    const standardKeys = ['name', 'email', 'phone', 'city', 'gender', 'tags'];
-    if (standardKeys.includes(cleanName) || customColumns.includes(cleanName)) {
-      toast.error('Column header already exists');
-      return;
-    }
-    setCustomColumns([...customColumns, cleanName]);
-    setNewColName('');
-    setIsAddingCol(false);
-    toast.success(`Custom column "${cleanName}" registered`);
-  };
-
-  // Generate and download sample CSV with custom columns
-  const downloadSampleCSV = () => {
-    const headers = ["name", "email", "phone", "city", "gender", "tags", "total spend", "orders", "last active", ...customColumns].join(",");
-    const sampleVal1 = ["Ananya Patel", "ananya.p@gmail.com", "+919812345678", "Mumbai", "female", "vip;beauty-enthusiast", "15450.50", "6", "2026-05-15", ...customColumns.map(() => "value1")].join(",");
-    const sampleVal2 = ["Aarav Mehta", "aarav.m@gmail.com", "+919876543210", "Delhi", "male", "discount-lover", "4800.00", "2", "2026-06-01", ...customColumns.map(() => "value2")].join(",");
-    
-    const csvContent = `${headers}\n${sampleVal1}\n${sampleVal2}\n`;
-      
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "xeno_customer_import_sample.csv");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   };
 
   const handleDragOver = (e) => {
@@ -72,10 +38,11 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
   const handleDrop = (e) => {
     e.preventDefault();
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.name.endsWith('.csv')) {
+    const ext = droppedFile.name.split('.').pop().toLowerCase();
+    if (droppedFile && ['csv', 'xlsx', 'xls', 'json'].includes(ext)) {
       processFile(droppedFile);
     } else {
-      toast.error('Only CSV files are allowed');
+      toast.error('Only CSV, Excel, and JSON files are allowed');
     }
   };
 
@@ -84,52 +51,49 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
     if (selectedFile) processFile(selectedFile);
   };
 
-  const processFile = (selectedFile) => {
+  const processFile = async (selectedFile) => {
     setFile(selectedFile);
-    
-    // Parse first 5 rows for preview
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const text = e.target.result;
-      const lines = text.split('\n').filter(Boolean);
-      
-      if (lines.length === 0) {
-        toast.error('CSV file is empty');
-        return;
+    setImporting(true);
+    try {
+      const res = await importPreview(selectedFile);
+      if (res.success) {
+        setPreviewRows(res.data.preview);
+        const detectedHeaders = res.data.headers;
+        setFileHeaders(detectedHeaders);
+        setMapping(res.data.mapping || {});
+        const standardHeaders = ['name', 'email', 'phone', 'city', 'gender', 'tags', 'totalSpend', 'orderCount', 'lastOrderDate', 'avgOrderValue'];
+        const customCols = detectedHeaders.filter(h => !standardHeaders.includes(h));
+        setCustomColumns(customCols);
+        setStep(2);
+      } else {
+        toast.error(res.error || 'Failed to parse file');
       }
-      
-      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      const previewData = [];
+    } catch (err) {
+      toast.error(`Parsing failed: ${err.response?.data?.error || err.message}`);
+    } finally {
+      setImporting(false);
+    }
+  };
 
-      for (let i = 1; i < Math.min(6, lines.length); i++) {
-        const rowValues = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
-        const rowObj = {};
-        
-        headers.forEach((header, index) => {
-          rowObj[header.trim().toLowerCase()] = rowValues[index] || '';
-        });
-        previewData.push(rowObj);
-      }
-      
-      setPreviewRows(previewData);
-      setStep(2);
-    };
-    
-    reader.readAsText(selectedFile);
+  const handleMapChange = (header, targetField) => {
+    setMapping(prev => ({
+      ...prev,
+      [header]: targetField
+    }));
   };
 
   const triggerImport = async () => {
     if (!file) return;
     setImporting(true);
     try {
-      const res = await importCSV(file);
+      const res = await importCSV(file, mapping);
       if (res.success) {
         setResults(res.data);
         setStep(3);
         onImportSuccess();
-        toast.success('CSV import completed');
+        toast.success('Import completed successfully');
       } else {
-        toast.error(res.error || 'Failed to import CSV');
+        toast.error(res.error || 'Failed to import customers');
       }
     } catch (err) {
       toast.error(`Import failed: ${err.response?.data?.error || err.message}`);
@@ -142,7 +106,7 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
     <Modal
       isOpen={isOpen}
       onClose={handleClose}
-      title="Import Customers via CSV"
+      title="Import Customers"
       size={step === 2 ? 'lg' : 'md'}
     >
       {/* Step 1: Upload */}
@@ -156,7 +120,7 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
           >
             <UploadCloud className="h-10 w-10 text-primary-light animate-pulse-slow" />
             <div className="space-y-1">
-              <p className="text-sm font-semibold text-text-primary">Drag and drop your CSV file here</p>
+              <p className="text-sm font-semibold text-text-primary">Drag and drop your file here (CSV, Excel, or JSON)</p>
               <p className="text-xs text-text-secondary">or click to browse local files</p>
             </div>
             <p className="text-[10px] text-text-muted">Maximum file size: 10MB</p>
@@ -164,73 +128,44 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
               type="file"
               ref={fileInputRef}
               onChange={handleFileSelect}
-              accept=".csv"
+              accept=".csv,.xlsx,.xls,.json"
               className="hidden"
             />
           </div>
 
-          {/* Add custom columns button */}
-          {isAddingCol ? (
-            <form onSubmit={handleSaveCustomColumn} className="flex items-center space-x-2 bg-surface-elevated/45 p-3 rounded-xl border border-border">
-              <input
-                type="text"
-                value={newColName}
-                onChange={(e) => setNewColName(e.target.value)}
-                placeholder="Custom column header (e.g. age)"
-                className="input-field py-1.5 text-xs flex-1"
-                autoFocus
-              />
-              <Button type="submit" size="sm" variant="primary">Add</Button>
-              <Button type="button" size="sm" variant="secondary" onClick={() => setIsAddingCol(false)}>Cancel</Button>
-            </form>
-          ) : null}
-
-          {/* Guidelines */}
+          {/* Guidelines / Active Fields */}
           <div className="bg-surface-elevated/45 p-4 rounded-xl border border-border/60 space-y-3.5">
             <div className="flex items-center justify-between text-xs font-semibold text-text-primary">
-              <div className="flex items-center space-x-2">
-                <span>Expected Columns:</span>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingCol(true)}
-                  className="p-1 hover:bg-surface border border-border hover:border-primary/45 rounded-lg text-primary-light transition-all flex items-center justify-center"
-                  title="Add Custom Column"
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={downloadSampleCSV}
-                className="text-primary-light hover:text-primary transition-colors flex items-center space-x-1 font-medium"
-              >
-                <Download className="h-3.5 w-3.5" />
-                <span>Download sample CSV</span>
-              </button>
+              <span>Your Workspace Fields (Active):</span>
             </div>
             
             <div className="grid grid-cols-3 gap-2 text-center text-[10px] font-mono">
-              <span className="bg-surface p-1.5 rounded border border-border/80">name (Required)</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80">email (Unique)</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80">phone</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80">city</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80">gender (male/female/other)</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80">tags (semicolon separated)</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80 font-bold text-primary-light">total spend</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80 font-bold text-primary-light">orders</span>
-              <span className="bg-surface p-1.5 rounded border border-border/80 font-bold text-primary-light">last active</span>
-              {customColumns.map((col, idx) => (
-                <span key={idx} className="bg-primary/10 text-primary-light p-1.5 rounded border border-primary/20 flex items-center justify-between px-2 font-bold uppercase tracking-wider relative group">
-                  <span className="truncate">{col}</span>
-                  <button
-                    type="button"
-                    onClick={() => setCustomColumns(customColumns.filter(c => c !== col))}
-                    className="text-text-muted hover:text-danger ml-1 transition-colors"
+              {uploadedFields.map((field, idx) => {
+                const isStandard = ['name', 'email', 'phone', 'city', 'gender', 'tags', 'totalSpend', 'orderCount', 'lastOrderDate', 'avgOrderValue'].includes(field);
+                const displayLabel = field === 'totalSpend' ? 'total spend'
+                  : field === 'orderCount' ? 'orders'
+                  : field === 'lastOrderDate' ? 'last active'
+                  : field;
+                return (
+                  <span
+                    key={idx}
+                    className={
+                      isStandard
+                        ? "bg-surface p-1.5 rounded border border-border/80 text-text-secondary font-semibold"
+                        : "bg-primary/10 text-primary-light p-1.5 rounded border border-primary/20 font-bold uppercase tracking-wider"
+                    }
                   >
-                    <X className="h-3 w-3" />
-                  </button>
+                    {displayLabel}
+                    {field === 'name' && ' (Required)'}
+                    {field === 'email' && ' (Unique)'}
+                  </span>
+                );
+              })}
+              {uploadedFields.length === 0 && (
+                <span className="col-span-3 py-4 text-center text-text-muted text-xs italic">
+                  No active fields yet. Please upload a file to detect and map fields.
                 </span>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -253,56 +188,120 @@ export default function CSVImportModal({ isOpen, onClose, onImportSuccess }) {
           </div>
 
           <div className="space-y-2">
-            <h5 className="text-xs font-bold uppercase tracking-wider text-text-muted">Previewing first 5 rows</h5>
+            <h5 className="text-xs font-bold uppercase tracking-wider text-text-muted">Previewing first 2 rows</h5>
             <div className="glass-card overflow-hidden border-border/50 max-h-[40vh] overflow-y-auto">
               <table className="w-full text-left border-collapse text-xs">
                 <thead>
                   <tr className="border-b border-border bg-surface-elevated/40 font-semibold text-text-secondary">
-                    <th className="px-4 py-2">Name</th>
-                    <th className="px-4 py-2">Email</th>
-                    <th className="px-4 py-2">Phone</th>
-                    <th className="px-4 py-2">City</th>
-                    <th className="px-4 py-2">Gender</th>
-                    <th className="px-4 py-2">Tags</th>
-                    <th className="px-4 py-2">Total Spend</th>
-                    <th className="px-4 py-2">Orders</th>
-                    <th className="px-4 py-2">Last Active</th>
-                    {customColumns.map(col => (
-                      <th key={col} className="px-4 py-2 capitalize">{col}</th>
-                    ))}
+                    {fileHeaders.map((header) => {
+                      const targetField = mapping[header];
+                      const isRight = targetField === 'totalSpend';
+                      const isCenter = ['orderCount', 'lastOrderDate'].includes(targetField);
+                      return (
+                        <th
+                          key={header}
+                          className={`px-4 py-2 ${isRight ? 'text-right' : isCenter ? 'text-center' : ''}`}
+                        >
+                          {header}
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/40">
-                  {previewRows.map((row, idx) => (
+                  {previewRows.slice(0, 2).map((row, idx) => (
                     <tr key={idx} className="hover:bg-surface-elevated/20 text-text-secondary">
-                      <td className="px-4 py-2 font-medium text-text-primary">{row.name || '—'}</td>
-                      <td className="px-4 py-2">{row.email || '—'}</td>
-                      <td className="px-4 py-2 font-mono">{row.phone || '—'}</td>
-                      <td className="px-4 py-2">{row.city || '—'}</td>
-                      <td className="px-4 py-2 capitalize">{row.gender || '—'}</td>
-                      <td className="px-4 py-2">
-                        {row.tags ? (
-                          <div className="flex flex-wrap gap-1">
-                            {row.tags.split(';').map((t, tIdx) => (
-                              <span key={tIdx} className="bg-primary/10 text-primary-light px-1 rounded text-[9px]">
-                                {t.trim()}
-                              </span>
-                            ))}
-                          </div>
-                        ) : '—'}
-                      </td>
-                      <td className="px-4 py-2">{row['total spend'] || row['totalspend'] || row['spend'] || '—'}</td>
-                      <td className="px-4 py-2">{row['orders'] || row['ordercount'] || row['order count'] || '—'}</td>
-                      <td className="px-4 py-2">{row['last active'] || row['lastactive'] || row['last order date'] || row['lastorderdate'] || '—'}</td>
-                      {customColumns.map(col => (
-                        <td key={col} className="px-4 py-2">
-                          {row[col] || '—'}
-                        </td>
-                      ))}
+                      {fileHeaders.map((header) => {
+                        const targetField = mapping[header];
+                        const isRight = targetField === 'totalSpend';
+                        const isCenter = ['orderCount', 'lastOrderDate'].includes(targetField);
+                        let cellContent = '—';
+
+                        if (targetField === 'tags') {
+                          cellContent = Array.isArray(row.tags) && row.tags.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              {row.tags.map((t, tIdx) => (
+                                <span key={tIdx} className="bg-primary/10 text-primary-light px-1 rounded text-[9px]">
+                                  {t}
+                                </span>
+                              ))}
+                            </div>
+                          ) : '—';
+                        } else if (targetField === 'totalSpend') {
+                          cellContent = row.totalSpend !== undefined ? `₹${Number(row.totalSpend).toLocaleString('en-IN')}` : '—';
+                        } else if (targetField === 'orderCount') {
+                          cellContent = row.orderCount !== undefined ? row.orderCount : '—';
+                        } else if (targetField === 'lastOrderDate') {
+                          cellContent = row.lastOrderDate ? new Date(row.lastOrderDate).toLocaleDateString('en-IN') : '—';
+                        } else if (['name', 'email', 'phone', 'city', 'gender'].includes(targetField)) {
+                          cellContent = row[targetField] || '—';
+                        } else {
+                          cellContent = row.customFields && row.customFields[header] !== undefined ? String(row.customFields[header]) : '—';
+                        }
+
+                        return (
+                          <td
+                            key={header}
+                            className={`px-4 py-2 ${
+                              isRight
+                                ? 'text-right font-semibold text-text-primary'
+                                : isCenter
+                                ? 'text-center'
+                                : targetField === 'name'
+                                ? 'font-medium text-text-primary'
+                                : ''
+                            }`}
+                          >
+                            {cellContent}
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+
+          {/* Configure Column Mapping */}
+          <div className="bg-surface-elevated/20 p-5 rounded-xl border border-border/40 space-y-4 mt-4">
+            <div>
+              <h5 className="text-xs font-bold uppercase tracking-wider text-text-primary flex items-center gap-1.5 font-display">
+                <CheckCircle2 className="h-4.5 w-4.5 text-primary-light" />
+                <span>Configure Column Mapping</span>
+              </h5>
+              <p className="text-[10px] text-text-secondary mt-1">
+                We've auto-detected some fields based on your file. Adjust the dropdowns below if you want to map different columns.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {Object.keys(mapping).map((header) => {
+                const currentVal = mapping[header];
+                return (
+                  <div key={header} className="flex items-center justify-between gap-3 bg-surface p-2.5 rounded-lg border border-border/60">
+                    <span className="text-xs font-mono font-medium truncate max-w-[150px] text-text-primary" title={header}>
+                      {header}
+                    </span>
+                    <select
+                      value={currentVal}
+                      onChange={(e) => handleMapChange(header, e.target.value)}
+                      className="bg-surface-elevated border border-border text-[11px] rounded-lg p-1.5 text-text-primary outline-none focus:border-primary w-40"
+                    >
+                      <option value="name">Name (Required)</option>
+                      <option value="email">Email</option>
+                      <option value="phone">Phone Number</option>
+                      <option value="city">City</option>
+                      <option value="gender">Gender</option>
+                      <option value="tags">Tags</option>
+                      <option value="totalSpend">Total Spend</option>
+                      <option value="orderCount">Orders</option>
+                      <option value="lastOrderDate">Last Active Date</option>
+                      <option value="custom">Custom Field</option>
+                    </select>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

@@ -31,23 +31,6 @@ export default function StatCard({
         )}
       </div>
 
-      {!loading && trend && (
-        <div className="flex items-center mt-4 text-xs">
-          <span
-            className={`inline-flex items-center px-1.5 py-0.5 rounded-md font-medium ${
-              trend.isPositive ? 'bg-success/10 text-success' : 'bg-danger/10 text-danger'
-            }`}
-          >
-            {trend.isPositive ? (
-              <ArrowUpRight className="h-3 w-3 mr-0.5" />
-            ) : (
-              <ArrowDownRight className="h-3 w-3 mr-0.5" />
-            )}
-            {trend.value}%
-          </span>
-          <span className="text-text-muted ml-2">vs last campaign</span>
-        </div>
-      )}
     </div>
   );
 }

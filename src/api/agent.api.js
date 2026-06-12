@@ -10,12 +10,12 @@ export const approveStep = async (step, agentContext, editedData) => {
   return response.data;
 };
 
-export const getSuggestions = async () => {
-  const response = await axiosInstance.get('/api/agent/suggestions');
+export const getSuggestions = async (refresh = false) => {
+  const response = await axiosInstance.get(`/api/agent/suggestions${refresh ? '?refresh=true' : ''}`);
   return response.data;
 };
 
-export const getInsights = async () => {
-  const response = await axiosInstance.get('/api/agent/insights');
+export const getInsights = async (refresh = false) => {
+  const response = await axiosInstance.get(`/api/agent/insights${refresh ? '?refresh=true' : ''}`);
   return response.data;
 };

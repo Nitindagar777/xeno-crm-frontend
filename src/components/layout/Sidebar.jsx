@@ -8,18 +8,29 @@ import {
   Filter,
   Send,
   LogOut,
-  Sparkles
+  Sparkles,
+  Briefcase,
+  History,
+  Radio
 } from 'lucide-react';
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
 
   const navItems = [
+    { name: 'Workspace', path: '/workspace', icon: Briefcase },
     { name: 'Dashboard', path: '/dashboard', icon: LayoutDashboard },
     { name: 'Customers', path: '/customers', icon: Users },
     { name: 'Segments', path: '/segments', icon: Filter },
-    { name: 'Campaigns', path: '/campaigns', icon: Send }
+    { name: 'Campaigns', path: '/campaigns', icon: Send },
+    { name: 'Message History', path: '/history', icon: History }
   ];
+
+  const simulatorUrl = `${
+    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+      ? 'http://localhost:5001'
+      : 'https://api.oopsverse.cloud'
+  }/?userId=${user?._id || ''}`;
 
   const avatarBgColor = getAvatarColor(user?.name || '');
   const initials = getInitials(user?.name || '');
@@ -60,6 +71,16 @@ export default function Sidebar() {
               </NavLink>
             );
           })}
+
+          <a
+            href={simulatorUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center space-x-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 text-text-secondary hover:text-text-primary hover:bg-surface-elevated"
+          >
+            <Radio className="h-4.5 w-4.5 text-amber-500" />
+            <span>Channel Simulator</span>
+          </a>
         </nav>
       </div>
 

@@ -16,6 +16,10 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    const workspaceId = localStorage.getItem('xeno_workspace_id');
+    if (workspaceId) {
+      config.headers['x-workspace-id'] = workspaceId;
+    }
     return config;
   },
   (error) => {
@@ -34,6 +38,8 @@ axiosInstance.interceptors.response.use(
       // Clear credentials
       localStorage.removeItem('xeno_token');
       localStorage.removeItem('xeno_user');
+      localStorage.removeItem('xeno_workspace_id');
+      localStorage.removeItem('xeno_workspace_name');
       
       // Redirect using window object for absolute route breakout
       if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {

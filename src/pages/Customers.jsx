@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getCustomers, getCustomer } from '../api/customer.api';
+import { getCustomers, getCustomer, getCustomerMetadata } from '../api/customer.api';
 import CustomerTable from '../components/customers/CustomerTable';
 import CSVImportModal from '../components/customers/CSVImportModal';
 import { SkeletonTable } from '../components/ui/Skeleton';
@@ -22,9 +22,83 @@ import {
   UserPlus
 } from 'lucide-react';
 
+const getProfileFieldValue = (c, keyName) => {
+  if (!c) return '—';
+  if (c.customFields && c.customFields[keyName] !== undefined && c.customFields[keyName] !== null && c.customFields[keyName] !== '') {
+    return String(c.customFields[keyName]);
+  }
+  const h = keyName.toLowerCase().trim();
+  if (c.customFields) {
+    const matchedKey = Object.keys(c.customFields).find(k => k.toLowerCase().trim() === h);
+    if (matchedKey) {
+      return String(c.customFields[matchedKey]);
+    }
+  }
+  if (['name', 'full name', 'fullname', 'shopper name', 'shoppername', 'first name', 'firstname', 'customer name', 'customername'].includes(h)) {
+    return c.name || '—';
+  }
+  if (['email', 'email address', 'emailaddress', 'mail'].includes(h)) {
+    return c.email || '—';
+  }
+  if (['phone', 'phone number', 'phonenumber', 'mobile', 'mobile number', 'mobilenumber', 'contact', 'contact number'].includes(h)) {
+    return c.phone || '—';
+  }
+  if (['city', 'location', 'town', 'address'].includes(h)) {
+    return c.city || '—';
+  }
+  if (['gender', 'sex'].includes(h)) {
+    return c.gender || '—';
+  }
+  if (['total spend', 'totalspend', 'spend', 'amount', 'total_spend', 'totalspendamount', 'price', 'revenue', 'spend amount'].includes(h)) {
+    return c.totalSpend !== undefined ? String(c.totalSpend) : '—';
+  }
+  if (['orders', 'ordercount', 'order count', 'total orders', 'totalorders', 'order_count'].includes(h)) {
+    return c.orderCount !== undefined ? String(c.orderCount) : '—';
+  }
+  if (['last active', 'lastactive', 'last order date', 'lastorderdate', 'last_order_date', 'lastactiveactive'].includes(h)) {
+    return c.lastOrderDate ? new Date(c.lastOrderDate).toLocaleDateString() : '—';
+  }
+  return '—';
+};
+
+const getProfileNumericValue = (c, keyName, standardValue) => {
+  if (!c) return 0;
+  const h = keyName.toLowerCase().trim();
+  if (c.customFields) {
+    const matchedKey = Object.keys(c.customFields).find(k => {
+      const kh = k.toLowerCase().trim();
+      if (kh === h) return true;
+      if (h === 'totalspend' && ['total spend', 'totalspend', 'spend', 'amount', 'total_spend', 'totalspendamount', 'price', 'revenue', 'total spend (₹)', 'total spend (rs)', 'spend amount'].includes(kh)) return true;
+      if (h === 'ordercount' && ['orders', 'ordercount', 'order count', 'total orders', 'totalorders', 'order_count'].includes(kh)) return true;
+      return false;
+    });
+    if (matchedKey) {
+      const val = parseFloat(c.customFields[matchedKey]);
+      if (!isNaN(val)) return val;
+    }
+  }
+  return standardValue || 0;
+};
+
+const getProfileDateValue = (c) => {
+  if (!c) return null;
+  if (c.lastOrderDate) return new Date(c.lastOrderDate);
+  if (c.customFields) {
+    const dateKey = Object.keys(c.customFields).find(k => {
+      const kh = k.toLowerCase().trim();
+      return ['last active', 'lastactive', 'last order date', 'lastorderdate', 'last_order_date', 'lastactiveactive', 'join date', 'joindate', 'date'].includes(kh);
+    });
+    if (dateKey) {
+      const parsed = new Date(c.customFields[dateKey]);
+      if (!isNaN(parsed.getTime())) return parsed;
+    }
+  }
+  return null;
+};
+
 export default function Customers() {
   const queryClient = useQueryClient();
-  const { openPanel, sendToAgent } = useAgent();
+  const { openPanel, sendToAgent, sendToAgentWithContext, setAgentContext } = useAgent();
 
   // Search & Pagination States
   const [page, setPage] = useState(1);
@@ -38,6 +112,7 @@ export default function Customers() {
   const [maxSpend, setMaxSpend] = useState('');
   const [minOrders, setMinOrders] = useState('');
   const [daysSinceLast, setDaysSinceLast] = useState('');
+  const [customFilters, setCustomFilters] = useState({});
   
   // Sidebar & Modal UI States
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -65,7 +140,8 @@ export default function Customers() {
     minSpend,
     maxSpend,
     minOrders,
-    daysSinceLast
+    daysSinceLast,
+    ...customFilters
   };
 
   // Fetch Customers List
@@ -74,6 +150,15 @@ export default function Customers() {
     queryFn: () => getCustomers(queryParams),
     placeholderData: (previousData) => previousData
   });
+
+  // Fetch Customer Metadata (tags, cities, uploadedFields, customFieldKeys)
+  const { data: metadataData } = useQuery({
+    queryKey: ['customer-metadata'],
+    queryFn: getCustomerMetadata
+  });
+
+  const uploadedFields = metadataData?.data?.uploadedFields || [];
+  const customFieldKeys = metadataData?.data?.customFieldKeys || [];
 
   // Fetch Customer Profile details when slide-over opens
   const { data: profileData, isLoading: profileLoading } = useQuery({
@@ -85,6 +170,7 @@ export default function Customers() {
   const handleImportSuccess = () => {
     queryClient.invalidateQueries({ queryKey: ['customers'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+    queryClient.invalidateQueries({ queryKey: ['customer-metadata'] });
   };
 
   const handleResetFilters = () => {
@@ -95,13 +181,37 @@ export default function Customers() {
     setMinOrders('');
     setDaysSinceLast('');
     setSearchTerm('');
+    setCustomFilters({});
     setPage(1);
   };
 
   const startAISegment = (customer) => {
     setSelectedCustomerId(null);
     openPanel();
-    sendToAgent(`Target customers located in ${customer.city || 'Mumbai'} spent over ${formatCurrency(customer.totalSpend)}`);
+    
+    const targetField = customer.email ? 'email' : (customer.phone ? 'phone' : 'name');
+    const targetValue = customer[targetField];
+    const rules = {
+      logic: 'AND',
+      conditions: [{ field: targetField, operator: 'eq', value: targetValue }]
+    };
+    
+    const newContext = {
+      intent: `Target customer with ${targetField} ${targetValue}`,
+      segmentPlan: rules,
+      segmentName: `Target: ${customer.name}`,
+      segmentDesc: `Targeting specific customer ${customer.name} (${targetValue})`,
+      campaignName: `Campaign for ${customer.name}`,
+      messagePlan: null,
+      channelPlan: null,
+      approvals: { segment: true, message: false, channel: false },
+      resolvedAudienceCount: 1,
+      campaignCreated: false,
+      currentStep: 'PROPOSE_MESSAGE'
+    };
+    
+    setAgentContext(newContext);
+    sendToAgentWithContext(`Target customer with ${targetField} ${targetValue}. Propose a message template.`, newContext);
   };
 
   const customersList = customersData?.data?.customers || [];
@@ -143,7 +253,7 @@ export default function Customers() {
             onClick={() => setIsImportOpen(true)}
           >
             <Upload className="h-4 w-4 mr-1.5" />
-            <span>Import CSV</span>
+            <span>Import Data</span>
           </Button>
         </div>
       </div>
@@ -165,83 +275,113 @@ export default function Customers() {
 
             <div className="space-y-4">
               {/* City */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-text-muted">City</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Mumbai, Delhi"
-                  value={cityFilter}
-                  onChange={(e) => { setCityFilter(e.target.value); setPage(1); }}
-                  className="input-field py-2 text-xs"
-                />
-              </div>
+              {uploadedFields.includes('city') && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-text-muted">City</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Mumbai, Delhi"
+                    value={cityFilter}
+                    onChange={(e) => { setCityFilter(e.target.value); setPage(1); }}
+                    className="input-field py-2 text-xs"
+                  />
+                </div>
+              )}
 
               {/* Gender */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-text-muted">Gender</label>
-                <select
-                  value={genderFilter}
-                  onChange={(e) => { setGenderFilter(e.target.value); setPage(1); }}
-                  className="bg-surface-elevated border border-border rounded-lg text-xs p-2 text-text-primary focus:outline-none focus:border-primary w-full"
-                >
-                  <option value="">All Genders</option>
-                  <option value="female">Female</option>
-                  <option value="male">Male</option>
-                  <option value="other">Other</option>
-                  <option value="unknown">Unknown</option>
-                </select>
-              </div>
+              {uploadedFields.includes('gender') && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-text-muted">Gender</label>
+                  <select
+                    value={genderFilter}
+                    onChange={(e) => { setGenderFilter(e.target.value); setPage(1); }}
+                    className="bg-surface-elevated border border-border rounded-lg text-xs p-2 text-text-primary focus:outline-none focus:border-primary w-full"
+                  >
+                    <option value="">All Genders</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="other">Other</option>
+                    <option value="unknown">Unknown</option>
+                  </select>
+                </div>
+              )}
 
               {/* Spend Range */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-text-muted">Min Spend (₹)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 5000"
-                  value={minSpend}
-                  onChange={(e) => { setMinSpend(e.target.value); setPage(1); }}
-                  className="input-field py-2 text-xs"
-                />
-              </div>
+              {uploadedFields.includes('totalSpend') && (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-text-muted">Min Spend (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 5000"
+                      value={minSpend}
+                      onChange={(e) => { setMinSpend(e.target.value); setPage(1); }}
+                      className="input-field py-2 text-xs"
+                    />
+                  </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-text-muted">Max Spend (₹)</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 20000"
-                  value={maxSpend}
-                  onChange={(e) => { setMaxSpend(e.target.value); setPage(1); }}
-                  className="input-field py-2 text-xs"
-                />
-              </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] uppercase font-bold text-text-muted">Max Spend (₹)</label>
+                    <input
+                      type="number"
+                      placeholder="e.g. 20000"
+                      value={maxSpend}
+                      onChange={(e) => { setMaxSpend(e.target.value); setPage(1); }}
+                      className="input-field py-2 text-xs"
+                    />
+                  </div>
+                </>
+              )}
 
               {/* Min Orders */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-text-muted">Min Orders</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 3"
-                  value={minOrders}
-                  onChange={(e) => { setMinOrders(e.target.value); setPage(1); }}
-                  className="input-field py-2 text-xs"
-                />
-              </div>
+              {uploadedFields.includes('orderCount') && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-text-muted">Min Orders</label>
+                  <input
+                    type="number"
+                    placeholder="e.g. 3"
+                    value={minOrders}
+                    onChange={(e) => { setMinOrders(e.target.value); setPage(1); }}
+                    className="input-field py-2 text-xs"
+                  />
+                </div>
+              )}
 
               {/* Inactivity Days */}
-              <div className="space-y-1.5">
-                <label className="text-[10px] uppercase font-bold text-text-muted">Inactivity Days</label>
-                <select
-                  value={daysSinceLast}
-                  onChange={(e) => { setDaysSinceLast(e.target.value); setPage(1); }}
-                  className="bg-surface-elevated border border-border rounded-lg text-xs p-2 text-text-primary focus:outline-none focus:border-primary w-full"
-                >
-                  <option value="">All Time</option>
-                  <option value="30">Over 30 days ago</option>
-                  <option value="60">Over 60 days ago</option>
-                  <option value="90">Over 90 days ago</option>
-                  <option value="120">Over 120 days ago</option>
-                </select>
-              </div>
+              {uploadedFields.includes('lastOrderDate') && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-text-muted">Inactivity Days</label>
+                  <select
+                    value={daysSinceLast}
+                    onChange={(e) => { setDaysSinceLast(e.target.value); setPage(1); }}
+                    className="bg-surface-elevated border border-border rounded-lg text-xs p-2 text-text-primary focus:outline-none focus:border-primary w-full"
+                  >
+                    <option value="">All Time</option>
+                    <option value="30">Over 30 days ago</option>
+                    <option value="60">Over 60 days ago</option>
+                    <option value="90">Over 90 days ago</option>
+                    <option value="120">Over 120 days ago</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Dynamic Custom Fields Filters */}
+              {customFieldKeys.map((key) => (
+                <div key={key} className="space-y-1.5">
+                  <label className="text-[10px] uppercase font-bold text-text-muted capitalize">{key}</label>
+                  <input
+                    type="text"
+                    placeholder={`Filter by ${key}`}
+                    value={customFilters[key] || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setCustomFilters(prev => ({ ...prev, [key]: val }));
+                      setPage(1);
+                    }}
+                    className="input-field py-2 text-xs"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -254,6 +394,7 @@ export default function Customers() {
             <CustomerTable
               customers={customersList}
               onViewProfile={(c) => setSelectedCustomerId(c._id)}
+              uploadedFields={uploadedFields}
             />
           )}
 
@@ -290,6 +431,7 @@ export default function Customers() {
         isOpen={isImportOpen}
         onClose={() => setIsImportOpen(false)}
         onImportSuccess={handleImportSuccess}
+        uploadedFields={uploadedFields}
       />
 
       {/* Customer Profile Slide-over Drawer */}
@@ -350,69 +492,111 @@ export default function Customers() {
             </div>
 
             {/* Metrics cards grid */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
-                <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider flex items-center space-x-1">
-                  <TrendingUp className="h-3 w-3 text-success" />
-                  <span>Total Spend</span>
-                </span>
-                <span className="text-base font-bold text-text-primary mt-1">{formatCurrency(profile.totalSpend)}</span>
-              </div>
+            {(() => {
+              const totalSpend = getProfileNumericValue(profile, 'totalSpend', profile.totalSpend);
+              const orderCount = getProfileNumericValue(profile, 'orderCount', profile.orderCount);
+              const avgOrderValue = orderCount > 0 ? parseFloat((totalSpend / orderCount).toFixed(2)) : 0;
+              
+              const lastActiveDate = getProfileDateValue(profile);
+              let daysSinceLast = 'Never purchased';
+              if (lastActiveDate) {
+                const diffTime = Math.abs(new Date() - lastActiveDate);
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                daysSinceLast = `${diffDays}d ago`;
+              }
 
-              <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
-                <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider flex items-center space-x-1">
-                  <ShoppingBag className="h-3 w-3 text-info" />
-                  <span>Order Count</span>
-                </span>
-                <span className="text-base font-bold text-text-primary mt-1">{profile.orderCount} orders</span>
-              </div>
+              return (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
+                      <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider flex items-center space-x-1">
+                        <TrendingUp className="h-3 w-3 text-success" />
+                        <span>Total Spend</span>
+                      </span>
+                      <span className="text-base font-bold text-text-primary mt-1">{formatCurrency(totalSpend)}</span>
+                    </div>
 
-              <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
-                <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Avg Order Value</span>
-                <span className="text-sm font-bold text-text-primary mt-1">{formatCurrency(profile.avgOrderValue)}</span>
-              </div>
+                    <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
+                      <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider flex items-center space-x-1">
+                        <ShoppingBag className="h-3 w-3 text-info" />
+                        <span>Order Count</span>
+                      </span>
+                      <span className="text-base font-bold text-text-primary mt-1">{orderCount} orders</span>
+                    </div>
 
-              <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
-                <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider flex items-center space-x-1">
-                  <Calendar className="h-3 w-3 text-warning" />
-                  <span>Last Active</span>
-                </span>
-                <span className="text-xs font-bold text-text-primary mt-1">
-                  {profile.lastOrderDate ? `${profile.daysSinceLastOrder}d ago` : 'Never purchased'}
-                </span>
-              </div>
-            </div>
+                    <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
+                      <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider">Avg Order Value</span>
+                      <span className="text-sm font-bold text-text-primary mt-1">{formatCurrency(avgOrderValue)}</span>
+                    </div>
 
-            {/* Profile fields details */}
-            <div className="space-y-3 bg-surface-elevated/30 p-4 border border-border/60 rounded-xl text-xs">
-              <div className="flex justify-between border-b border-border/40 pb-2 text-text-secondary">
-                <span>Location:</span>
-                <strong className="text-text-primary">{profile.city || '—'}</strong>
-              </div>
-              <div className="flex justify-between border-b border-border/40 pb-2 text-text-secondary">
-                <span>Gender:</span>
-                <strong className="text-text-primary capitalize">{profile.gender}</strong>
-              </div>
-
-              {/* Dynamic Custom Fields */}
-              {profile.customFields && Object.keys(profile.customFields).length > 0 && (
-                Object.keys(profile.customFields).map((key) => (
-                  <div key={key} className="flex justify-between border-b border-border/40 pb-2 text-text-secondary">
-                    <span className="capitalize">{key}:</span>
-                    <strong className="text-text-primary">{String(profile.customFields[key]) || '—'}</strong>
+                    <div className="p-3 bg-surface border border-border/60 rounded-xl flex flex-col justify-between h-20 shadow-inner">
+                      <span className="text-[10px] text-text-muted uppercase font-bold tracking-wider flex items-center space-x-1">
+                        <Calendar className="h-3 w-3 text-warning" />
+                        <span>Last Active</span>
+                      </span>
+                      <span className="text-xs font-bold text-text-primary mt-1">
+                        {daysSinceLast}
+                      </span>
+                    </div>
                   </div>
-                ))
-              )}
 
-              <div className="flex justify-between border-b border-border/40 pb-2 text-text-secondary">
-                <span>Registration Date:</span>
-                <strong className="text-text-primary">{formatDate(profile.createdAt)}</strong>
-              </div>
-              <div className="flex justify-between text-text-secondary">
-                <span>Data Ingestion:</span>
-                <strong className="text-text-primary uppercase">{profile.source}</strong>
-              </div>
-            </div>
+                  {/* Profile fields details */}
+                  <div className="space-y-3 bg-surface-elevated/30 p-4 border border-border/60 rounded-xl text-xs">
+                    {(() => {
+                      let fieldsToRender = [];
+                      if (uploadedFields && uploadedFields.length > 0) {
+                        fieldsToRender = uploadedFields.filter(
+                          field => !['name', 'email', 'phone', 'tags', 'totalSpend', 'orderCount', 'avgOrderValue', 'lastOrderDate'].includes(field)
+                        );
+                      } else {
+                        // Fallback: use city, gender, and customFields keys
+                        if (profile.city) fieldsToRender.push('city');
+                        if (profile.gender && profile.gender !== 'unknown') fieldsToRender.push('gender');
+                        if (profile.customFields) {
+                          Object.keys(profile.customFields).forEach(key => {
+                            if (!fieldsToRender.includes(key)) fieldsToRender.push(key);
+                          });
+                        }
+                      }
+
+                      if (fieldsToRender.length === 0) {
+                        return <div className="text-text-muted text-center italic py-2">No profile details available.</div>;
+                      }
+
+                      return (
+                        <>
+                          {fieldsToRender.map((field) => {
+                            const val = getProfileFieldValue(profile, field);
+                            let label = field;
+                            if (field === 'city') label = 'Location';
+                            else if (field === 'gender') label = 'Gender';
+                            else {
+                              label = field.charAt(0).toUpperCase() + field.slice(1);
+                            }
+
+                            return (
+                              <div key={field} className="flex justify-between border-b border-border/40 pb-2 last:border-b last:pb-2 text-text-secondary">
+                                <span>{label}:</span>
+                                <strong className="text-text-primary">{val}</strong>
+                              </div>
+                            );
+                          })}
+                          
+                          <div className="flex justify-between border-b border-border/40 pb-2 text-text-secondary">
+                            <span>Registration Date:</span>
+                            <strong className="text-text-primary">{formatDate(profile.createdAt)}</strong>
+                          </div>
+                          <div className="flex justify-between text-text-secondary">
+                            <span>Data Ingestion:</span>
+                            <strong className="text-text-primary uppercase">{profile.source}</strong>
+                          </div>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </>
+              );
+            })()}
 
             {/* Order history timeline */}
             <div className="space-y-3">

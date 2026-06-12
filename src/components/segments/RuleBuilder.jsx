@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { Plus, Trash2, HelpCircle } from 'lucide-react';
 import { previewSegment } from '../../api/segment.api';
 import Spinner from '../ui/Spinner';
+import { useQuery } from '@tanstack/react-query';
+import { getCustomerMetadata } from '../../api/customer.api';
 
 const FIELDS = [
   { value: 'totalSpend', label: 'Total Spend (₹)', type: 'numeric' },
@@ -35,9 +37,36 @@ export default function RuleBuilder({ rules, onChange }) {
   const [matchCount, setMatchCount] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Fetch Customer Metadata (tags, cities, customFieldKeys)
+  const { data: metadataData } = useQuery({
+    queryKey: ['customer-metadata'],
+    queryFn: getCustomerMetadata
+  });
+
+  const customFieldKeys = metadataData?.data?.customFieldKeys || [];
+
+  const standardFields = [
+    { value: 'totalSpend', label: 'Total Spend (₹)', type: 'numeric' },
+    { value: 'orderCount', label: 'Order Count', type: 'numeric' },
+    { value: 'avgOrderValue', label: 'Average Order Value (₹)', type: 'numeric' },
+    { value: 'daysSinceLastOrder', label: 'Days Since Last Order', type: 'numeric' },
+    { value: 'city', label: 'City', type: 'string' },
+    { value: 'gender', label: 'Gender', type: 'string' },
+    { value: 'tags', label: 'Tags', type: 'array' }
+  ];
+
+  const dynamicFields = [
+    ...standardFields,
+    ...customFieldKeys.map(key => ({
+      value: key,
+      label: key.charAt(0).toUpperCase() + key.slice(1),
+      type: 'string'
+    }))
+  ];
+
   // Auto-fill default operators when field changes
   const handleFieldChange = (index, newField) => {
-    const fieldObj = FIELDS.find(f => f.value === newField);
+    const fieldObj = dynamicFields.find(f => f.value === newField);
     const availableOps = OPERATORS_BY_TYPE[fieldObj.type] || [];
     const defaultOp = availableOps[0]?.value || 'eq';
     
@@ -59,7 +88,7 @@ export default function RuleBuilder({ rules, onChange }) {
     let typedVal = val;
     
     // cast values if numeric
-    const fieldObj = FIELDS.find(f => f.value === updatedConditions[index].field);
+    const fieldObj = dynamicFields.find(f => f.value === updatedConditions[index].field);
     if (key === 'value') {
       if (fieldObj.type === 'numeric') {
         typedVal = val === '' ? 0 : parseFloat(val);
@@ -80,7 +109,7 @@ export default function RuleBuilder({ rules, onChange }) {
   };
 
   const addCondition = () => {
-    const defaultField = FIELDS[0].value;
+    const defaultField = dynamicFields[0].value;
     const defaultOp = OPERATORS_BY_TYPE.numeric[0].value;
 
     onChange({
@@ -186,7 +215,7 @@ export default function RuleBuilder({ rules, onChange }) {
           </div>
         ) : (
           rules.conditions.map((cond, index) => {
-            const fieldObj = FIELDS.find(f => f.value === cond.field) || FIELDS[0];
+            const fieldObj = dynamicFields.find(f => f.value === cond.field) || dynamicFields[0];
             const ops = OPERATORS_BY_TYPE[fieldObj.type] || [];
             
             // Format commas for display in 'in' operator edit box
@@ -202,7 +231,7 @@ export default function RuleBuilder({ rules, onChange }) {
                   onChange={(e) => handleFieldChange(index, e.target.value)}
                   className="bg-surface border border-border rounded-lg text-xs p-2 text-text-primary focus:outline-none focus:border-primary flex-1 min-w-[130px]"
                 >
-                  {FIELDS.map(f => (
+                  {dynamicFields.map(f => (
                     <option key={f.value} value={f.value}>{f.label}</option>
                   ))}
                 </select>

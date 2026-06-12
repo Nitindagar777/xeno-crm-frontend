@@ -608,6 +608,424 @@ function FeatureMarquee() {
   );
 }
 
+/* ─── Bento Grid Visual Simulators ───────────────────────────── */
+
+function AIChatSimulator() {
+  const [step, setStep] = useState(0);
+  const [typedText, setTypedText] = useState('');
+  const prompt = "Draft a campaign for customers who haven't ordered in 30 days.";
+
+  useEffect(() => {
+    let interval;
+    if (step === 0) {
+      let i = 0;
+      setTypedText('');
+      interval = setInterval(() => {
+        if (i < prompt.length) {
+          setTypedText((prev) => prev + prompt.charAt(i));
+          i++;
+        } else {
+          clearInterval(interval);
+          setTimeout(() => setStep(1), 1000);
+        }
+      }, 40);
+    } else if (step === 1) {
+      const timeout = setTimeout(() => {
+        setStep(2);
+      }, 1500);
+      return () => clearTimeout(timeout);
+    } else if (step === 2) {
+      const timeout = setTimeout(() => {
+        setStep(0);
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+    return () => clearInterval(interval);
+  }, [step]);
+
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-[#070709] p-4 flex flex-col justify-between h-44 overflow-hidden relative font-sans">
+      <div className="flex items-center justify-between border-b border-zinc-900 pb-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+          <span className="text-[10px] text-zinc-400 font-mono">XenoAI Console</span>
+        </div>
+        <span className="text-[9px] bg-primary/10 border border-primary/20 text-primary px-1.5 py-0.5 rounded font-mono">Active</span>
+      </div>
+
+      <div className="flex-grow space-y-3 flex flex-col justify-center">
+        <div className="flex items-start gap-2 text-[11px] text-zinc-300">
+          <span className="text-primary font-bold font-mono">&gt;</span>
+          <p className="font-mono">{typedText}</p>
+        </div>
+
+        {step === 1 && (
+          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <span className="flex h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
+            <span className="font-mono">Analyzing segments & writing copy...</span>
+          </div>
+        )}
+
+        {step === 2 && (
+          <motion.div
+            initial={{ opacity: 0, y: 5 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="rounded-lg bg-zinc-900/40 border border-zinc-800 p-2.5 space-y-1"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] text-emerald-400 font-bold uppercase tracking-wider">SMS & WhatsApp Copy</span>
+              <span className="text-[8px] bg-emerald-500/10 text-emerald-400 px-1.5 py-0.2 rounded font-mono">100% Match</span>
+            </div>
+            <p className="text-[10px] text-zinc-300 italic">"Hey Nitin! We miss you. Use code BACK15 for 15% off!"</p>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SegmentBuilderSimulator() {
+  const [count, setCount] = useState(12000);
+  const [activeNode, setActiveNode] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveNode((prev) => (prev + 1) % 3);
+      setCount(12000 + Math.floor(Math.random() * 800));
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-[#070709] p-4 flex flex-col justify-between h-44 overflow-hidden font-sans">
+      <div className="space-y-2 flex-grow">
+        {[
+          { type: 'AND', label: 'Spent > $150', desc: 'High lifetime value' },
+          { type: 'AND', label: 'Last Active > 30d', desc: 'Churn risk window' },
+          { type: 'AND', label: 'City == "Delhi"', desc: 'Regional delivery hub' }
+        ].map((node, i) => (
+          <div
+            key={i}
+            className={`flex items-center justify-between p-2 rounded-lg border transition-all duration-300 ${
+              activeNode === i
+                ? 'bg-primary/5 border-primary/40 shadow-sm shadow-primary/5 scale-[1.01]'
+                : 'bg-zinc-900/20 border-zinc-850'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 rounded border ${
+                activeNode === i ? 'bg-primary/20 text-primary border-primary/30' : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+              }`}>{node.type}</span>
+              <span className="text-[10px] text-zinc-300 font-bold tracking-tight">{node.label}</span>
+            </div>
+            <span className="text-[8px] text-zinc-500 font-medium">{node.desc}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-zinc-900 pt-2.5 mt-2.5 flex items-center justify-between">
+        <span className="text-[9px] text-zinc-400 font-mono">Matched Cohort Size:</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-[11px] font-mono text-primary font-bold">{count.toLocaleString()}</span>
+          <span className="text-[8px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1 py-0.2 rounded font-mono">Active</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeliveryHubSimulator() {
+  const [activeChannel, setActiveChannel] = useState(0);
+  const [logs, setLogs] = useState([
+    { channel: 'WhatsApp', status: 'Delivered', time: 'Just now' },
+    { channel: 'Email', status: 'Opened', time: '1s ago' },
+    { channel: 'SMS', status: 'Sent', time: '3s ago' }
+  ]);
+
+  const channels = [
+    { name: 'WhatsApp', color: 'bg-emerald-500', desc: 'Open Rate: 98%' },
+    { name: 'Email', color: 'bg-blue-500', desc: 'CTR: 22%' },
+    { name: 'RCS', color: 'bg-primary', desc: 'Rich features' },
+    { name: 'SMS', color: 'bg-yellow-500', desc: 'High delivery' }
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveChannel((prev) => {
+        const next = (prev + 1) % channels.length;
+        setLogs((old) => [
+          {
+            channel: channels[next].name,
+            status: ['Sent', 'Delivered', 'Opened'][Math.floor(Math.random() * 3)],
+            time: 'Just now'
+          },
+          ...old.slice(0, 2)
+        ]);
+        return next;
+      });
+    }, 2500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-[#070709] p-4 flex flex-col justify-between h-44 overflow-hidden font-sans">
+      <div className="grid grid-cols-2 gap-2">
+        {channels.map((chan, idx) => {
+          const isActive = idx === activeChannel;
+          return (
+            <div
+              key={idx}
+              className={`p-2 rounded-lg border transition-all duration-300 flex items-center justify-between ${
+                isActive
+                  ? 'bg-zinc-900 border-primary/40 shadow-sm'
+                  : 'bg-zinc-955/40 border-zinc-900'
+              }`}
+            >
+              <div className="flex items-center gap-1.5">
+                <span className={`w-1.5 h-1.5 rounded-full ${chan.color} ${isActive ? 'animate-ping' : ''}`} />
+                <span className="text-[9px] text-zinc-300 font-bold">{chan.name}</span>
+              </div>
+              <span className="text-[8px] text-zinc-500 font-mono font-medium">{chan.desc}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="border-t border-zinc-900 pt-2 mt-2 space-y-1.5">
+        <div className="flex items-center justify-between text-[8px] font-mono text-zinc-500">
+          <span>DELIVERY PIPELINE LOGS</span>
+          <span className="text-primary font-bold font-semibold">LIVE STREAM</span>
+        </div>
+        <div className="space-y-1">
+          {logs.map((log, i) => (
+            <div key={i} className="flex items-center justify-between text-[9px] font-mono">
+              <span className="text-zinc-400">{log.channel} campaign dispatch</span>
+              <div className="flex items-center gap-1.5">
+                <span className={`px-1 py-0.2 rounded font-bold ${
+                  log.status === 'Opened' ? 'text-blue-400 bg-blue-500/10' :
+                  log.status === 'Delivered' ? 'text-emerald-400 bg-emerald-500/10' : 'text-primary bg-primary/10'
+                }`}>{log.status}</span>
+                <span className="text-zinc-600 text-[8px]">{log.time}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TelemetryChartSimulator() {
+  const [data, setData] = useState([30, 45, 35, 60, 48, 75, 60, 90, 80]);
+  const [ctr, setCtr] = useState(14.8);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setData((prev) => {
+        const next = [...prev.slice(1)];
+        const newVal = Math.max(20, Math.min(95, prev[prev.length - 1] + (Math.random() * 30 - 15)));
+        next.push(newVal);
+        return next;
+      });
+      setCtr((prev) => {
+        const delta = Math.random() * 0.4 - 0.2;
+        return parseFloat(Math.max(12, Math.min(18, prev + delta)).toFixed(1));
+      });
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-[#070709] p-4 flex flex-col justify-between h-44 overflow-hidden font-sans">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] uppercase tracking-wider text-zinc-400 font-bold">Conversion Rate Telemetry</span>
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-mono text-primary font-bold">CTR: {ctr}%</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        </div>
+      </div>
+
+      <div className="h-24 w-full flex items-end pt-2 relative">
+        <svg className="w-full h-full" viewBox="0 0 100 40" preserveAspectRatio="none">
+          <defs>
+            <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#E5C158" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#E5C158" stopOpacity="0" />
+            </linearGradient>
+          </defs>
+          <line x1="0" y1="10" x2="100" y2="10" stroke="#1f1f2e" strokeWidth="0.2" strokeDasharray="1 1" />
+          <line x1="0" y1="20" x2="100" y2="20" stroke="#1f1f2e" strokeWidth="0.2" strokeDasharray="1 1" />
+          <line x1="0" y1="30" x2="100" y2="30" stroke="#1f1f2e" strokeWidth="0.2" strokeDasharray="1 1" />
+
+          <path
+            d={`M 0 40 ${data.map((val, idx) => `L ${(idx / (data.length - 1)) * 100} ${40 - (val / 100) * 35}`).join(' ')} L 100 40 Z`}
+            fill="url(#areaGrad)"
+          />
+
+          <path
+            d={data.map((val, idx) => `${idx === 0 ? 'M' : 'L'} ${(idx / (data.length - 1)) * 100} ${40 - (val / 100) * 35}`).join(' ')}
+            fill="none"
+            stroke="#E5C158"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+          />
+
+          <circle
+            cx="100"
+            cy={40 - (data[data.length - 1] / 100) * 35}
+            r="1.5"
+            fill="#E5C158"
+            className="animate-pulse"
+          />
+        </svg>
+      </div>
+
+      <div className="flex items-center justify-between text-[8px] font-mono text-zinc-500 pt-1 border-t border-zinc-900">
+        <span>POLLING: 100ms API DELAY</span>
+        <span>CONVERSION VELOCITY: OPTIMAL</span>
+      </div>
+    </div>
+  );
+}
+
+function CSVImporterSimulator() {
+  const [progress, setProgress] = useState(0);
+  const [status, setStatus] = useState('idle');
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setStatus((oldStatus) => {
+        if (oldStatus === 'idle') {
+          setProgress(0);
+          return 'loading';
+        } else if (oldStatus === 'loading') {
+          setProgress((prev) => {
+            if (prev >= 100) {
+              clearInterval(timer);
+              return 100;
+            }
+            return prev + Math.floor(Math.random() * 25 + 5);
+          });
+          return 'loading';
+        }
+        return 'idle';
+      });
+    }, 100);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    let timeout;
+    if (status === 'loading' && progress >= 100) {
+      timeout = setTimeout(() => {
+        setStatus('success');
+      }, 500);
+    } else if (status === 'success') {
+      timeout = setTimeout(() => {
+        setStatus('idle');
+      }, 3000);
+    }
+    return () => clearTimeout(timeout);
+  }, [status, progress]);
+
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-[#070709] p-4 flex flex-col justify-between h-44 overflow-hidden font-sans">
+      <div className="flex-grow flex flex-col justify-center items-center">
+        {status === 'idle' && (
+          <div className="text-center space-y-2">
+            <div className="mx-auto w-8 h-8 rounded-full bg-zinc-900 border border-zinc-800 flex items-center justify-center text-zinc-500">
+              <Database className="w-4 h-4" />
+            </div>
+            <span className="text-[10px] text-zinc-400 font-mono block">Ingest CSV or database replica...</span>
+            <span className="text-[8px] text-primary border border-primary/20 px-2 py-0.5 rounded-full inline-block font-mono bg-primary/5 cursor-pointer hover:bg-primary/10 transition-colors">Select File</span>
+          </div>
+        )}
+
+        {status === 'loading' && (
+          <div className="w-full space-y-3 px-2">
+            <div className="flex items-center justify-between text-[9px] font-mono">
+              <span className="text-zinc-300">users_db_june.csv</span>
+              <span className="text-primary font-bold">{Math.min(100, progress)}%</span>
+            </div>
+            <div className="h-1.5 w-full bg-zinc-900 border border-zinc-850 rounded-full overflow-hidden">
+              <div className="h-full bg-primary transition-all duration-150" style={{ width: `${Math.min(100, progress)}%` }} />
+            </div>
+            <span className="text-[8px] text-zinc-500 font-mono block text-center">Parsing records & running de-duplication...</span>
+          </div>
+        )}
+
+        {status === 'success' && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="text-center space-y-2"
+          >
+            <div className="mx-auto w-8 h-8 rounded-full bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+              <CheckCircle className="w-4.5 h-4.5" />
+            </div>
+            <div className="space-y-0.5">
+              <span className="text-[10px] text-zinc-200 font-bold block">12,482 Contacts Imported</span>
+              <span className="text-[8px] text-emerald-400 font-mono block">Zero errors, 34 duplicates resolved</span>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EnterpriseSecuritySimulator() {
+  const [pulse, setPulse] = useState(false);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setPulse((p) => !p);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="mt-4 rounded-xl border border-zinc-800 bg-[#070709] p-4 flex flex-col justify-between h-44 overflow-hidden font-sans">
+      <div className="flex items-center justify-between border-b border-zinc-900 pb-2 mb-1">
+        <span className="text-[9px] font-mono text-zinc-400 font-bold tracking-wider">SECURE SHIELD MATRIX</span>
+        <div className="flex items-center gap-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#10B981] animate-pulse" />
+          <span className="text-[8px] font-mono text-[#10B981] font-bold">99.99% UPTIME</span>
+        </div>
+      </div>
+
+      <div className="flex-grow flex items-center justify-center gap-6">
+        <div className="relative">
+          <div className={`absolute -inset-2 rounded-full bg-emerald-500/5 border border-emerald-500/20 transition-all duration-1000 ${pulse ? 'scale-125 opacity-0' : 'scale-90 opacity-100'}`} />
+          <div className="w-10 h-10 rounded-full bg-zinc-950 border border-zinc-850 flex items-center justify-center text-[#10B981] z-10 relative">
+            <Shield className="w-4.5 h-4.5" />
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-1.5 text-[9px] font-mono text-zinc-300">
+            <CheckCircle className="w-3 h-3 text-[#10B981]" />
+            <span>Primary DB Cluster</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[9px] font-mono text-zinc-300">
+            <CheckCircle className="w-3 h-3 text-[#10B981]" />
+            <span>AES-256 Replica</span>
+          </div>
+          <div className="flex items-center gap-1.5 text-[9px] font-mono text-zinc-300">
+            <CheckCircle className="w-3 h-3 text-[#10B981]" />
+            <span>TLS 1.3 Gateways</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-[8px] font-mono text-zinc-600 uppercase pt-1 border-t border-zinc-900 tracking-wider">
+        Node: IN-WEST-1 | Replica status: Synced
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════
    MAIN LANDING PAGE
    ═══════════════════════════════════════════════════════════════ */
@@ -634,11 +1052,7 @@ export default function Landing() {
       accentColor: 'text-primary',
       badgeStyle: 'text-primary border-primary/20 bg-primary/5',
       gridSpan: 'md:col-span-2',
-      customElement: (
-        <div className="mt-4 p-3 bg-zinc-900/40 border border-zinc-800 rounded-xl font-mono text-[10px] text-zinc-300">
-          <span className="text-primary">&gt;</span> Prompt: "Draft a segment for users who purchased twice this week."
-        </div>
-      )
+      customElement: <AIChatSimulator />
     },
     {
       no: "02",
@@ -653,12 +1067,7 @@ export default function Landing() {
       accentColor: 'text-primary',
       badgeStyle: 'text-primary border-primary/20 bg-primary/5',
       gridSpan: 'md:col-span-1',
-      customElement: (
-        <div className="mt-4 flex flex-wrap gap-1.5">
-          <span className="text-[9px] bg-zinc-900/50 px-2 py-0.5 rounded border border-zinc-800 text-primary">City == Delhi</span>
-          <span className="text-[9px] bg-zinc-900/50 px-2 py-0.5 rounded border border-zinc-800 text-zinc-300">Spend &gt; 10k</span>
-        </div>
-      )
+      customElement: <SegmentBuilderSimulator />
     },
     {
       no: "03",
@@ -673,13 +1082,7 @@ export default function Landing() {
       accentColor: 'text-primary',
       badgeStyle: 'text-primary border-primary/20 bg-primary/5',
       gridSpan: 'md:col-span-1',
-      customElement: (
-        <div className="mt-4 flex items-center gap-3 text-zinc-300">
-          <MessageSquare className="w-4 h-4 text-primary" />
-          <Mail className="w-4 h-4" />
-          <span className="text-[9px] font-mono opacity-80">Ready Gateways</span>
-        </div>
-      )
+      customElement: <DeliveryHubSimulator />
     },
     {
       no: "04",
@@ -694,15 +1097,7 @@ export default function Landing() {
       accentColor: 'text-primary',
       badgeStyle: 'text-primary border-primary/20 bg-primary/5',
       gridSpan: 'md:col-span-2',
-      customElement: (
-        <div className="mt-4 flex items-end gap-1.5 h-8 justify-between">
-          {[20, 40, 25, 60, 35, 75, 45, 90, 60].map((v, i) => (
-            <div key={i} className="flex-1 bg-zinc-900/50 h-full rounded flex items-end">
-              <div className="w-full bg-primary/45 rounded-sm" style={{ height: `${v}%` }} />
-            </div>
-          ))}
-        </div>
-      )
+      customElement: <TelemetryChartSimulator />
     },
     {
       no: "05",
@@ -717,11 +1112,7 @@ export default function Landing() {
       accentColor: 'text-primary',
       badgeStyle: 'text-primary border-primary/20 bg-primary/5',
       gridSpan: 'md:col-span-1',
-      customElement: (
-        <div className="mt-4 p-2 bg-zinc-900/50 border border-zinc-800 rounded-xl text-center">
-          <span className="text-[10px] text-primary font-mono font-semibold">Drop CSV database</span>
-        </div>
-      )
+      customElement: <CSVImporterSimulator />
     },
     {
       no: "06",
@@ -736,12 +1127,7 @@ export default function Landing() {
       accentColor: 'text-primary',
       badgeStyle: 'text-primary border-primary/20 bg-primary/5',
       gridSpan: 'md:col-span-1',
-      customElement: (
-        <div className="mt-4 flex items-center gap-2 text-zinc-300">
-          <Lock className="w-4 h-4 text-[#10B981]" />
-          <span className="text-[9px] font-mono">TLS 1.3 | AES-256</span>
-        </div>
-      )
+      customElement: <EnterpriseSecuritySimulator />
     }
   ];
 
@@ -898,11 +1284,11 @@ export default function Landing() {
           {bentoCards.map((feat, idx) => (
             <TiltCard
               key={idx}
-              className={`min-h-[300px] ${feat.gridSpan}`}
+              className={`flex flex-col justify-between min-h-[320px] ${feat.gridSpan}`}
               bgStyle={feat.cardStyle}
             >
               {/* Card Header */}
-              <div className="space-y-4">
+              <div className="space-y-3.5">
                 <div className="flex items-center justify-between">
                   <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-primary w-fit">
                     {feat.icon}
@@ -913,13 +1299,12 @@ export default function Landing() {
                 </div>
                 
                 <h4 className="text-lg font-display font-bold text-white tracking-tight pt-1">{feat.title}</h4>
-                <p className="text-xs text-zinc-200 leading-relaxed font-sans font-medium">{feat.description}</p>
+                <p className="text-xs text-zinc-400 leading-relaxed font-sans font-medium">{feat.description}</p>
               </div>
 
-              {/* Card Footer / Custom Element */}
-              <div>
+              {/* Card Visual Simulator (placed below text) */}
+              <div className="mt-4 w-full">
                 {feat.customElement}
-                <div className="h-[1px] bg-zinc-800 w-full mt-5" />
               </div>
             </TiltCard>
           ))}

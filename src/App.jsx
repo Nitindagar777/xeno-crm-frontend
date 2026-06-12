@@ -11,6 +11,8 @@ import Customers from './pages/Customers';
 import Segments from './pages/Segments';
 import Campaigns from './pages/Campaigns';
 import CampaignDetail from './pages/CampaignDetail';
+import Workspace from './pages/Workspace';
+import MessageHistory from './pages/MessageHistory';
 import Spinner from './components/ui/Spinner';
 
 // Protected Route Wrapper Component
@@ -65,15 +67,17 @@ export default function App() {
           </ProtectedRoute>
         }
       >
+        <Route path="/workspace" element={<Workspace />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/customers" element={<Customers />} />
         <Route path="/segments" element={<Segments />} />
         <Route path="/campaigns" element={<Campaigns />} />
         <Route path="/campaigns/:id" element={<CampaignDetail />} />
+        <Route path="/history" element={<MessageHistory />} />
       </Route>
 
       {/* Catch-all 404 */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="*" element={<Navigate to="/workspace" replace />} />
     </Routes>
   );
 }
