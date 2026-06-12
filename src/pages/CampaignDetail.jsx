@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getCampaign, getCampaignStats, getCampaignLogs, getCampaignAnalysis } from '../api/campaign.api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { getCampaign, getCampaignStats, getCampaignLogs, getCampaignAnalysis, convertCampaignLog } from '../api/campaign.api';
 import usePolling from '../hooks/usePolling';
 import Badge from '../components/ui/Badge';
 import Spinner from '../components/ui/Spinner';
@@ -24,6 +24,7 @@ import toast from 'react-hot-toast';
 
 export default function CampaignDetail() {
   const { id } = useParams();
+  const queryClient = useQueryClient();
   const [logPage, setLogPage] = useState(1);
   const [logStatus, setLogStatus] = useState('');
   const [lastRefreshed, setLastRefreshed] = useState(new Date());
@@ -104,6 +105,30 @@ export default function CampaignDetail() {
       setLastRefreshed(new Date());
     }
   }, [statsRes, logsRes]);
+
+  const handleMarkAsConverted = async (logId) => {
+    try {
+      const inputVal = window.prompt("Enter conversion value (INR):", "100");
+      if (inputVal === null) return;
+      const val = parseFloat(inputVal);
+      if (isNaN(val) || val <= 0) {
+        toast.error("Please enter a valid numeric value.");
+        return;
+      }
+      
+      const res = await convertCampaignLog(logId, val);
+      if (res.success) {
+        toast.success("Conversion registered!");
+        refetchStats();
+        refetchLogs();
+        queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
+      } else {
+        toast.error(res.error || "Failed to mark as converted");
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.error || "Conversion failed");
+    }
+  };
 
   // Render variables mock mapping
   const renderMessageSample = (template) => {
@@ -374,6 +399,7 @@ export default function CampaignDetail() {
                   <th className="px-6 py-3.5">Failure Reason</th>
                   <th className="px-6 py-3.5">Rendered Message</th>
                   <th className="px-6 py-3.5">Timestamp</th>
+                  <th className="px-6 py-3.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60 text-text-secondary">
@@ -389,6 +415,20 @@ export default function CampaignDetail() {
                       {log.personalizedMessage}
                     </td>
                     <td className="px-6 py-3.5 text-text-muted font-mono">{formatDateTime(log.updatedAt)}</td>
+                    <td className="px-6 py-3.5 text-right">
+                      {!log.converted ? (
+                        <button
+                          onClick={() => handleMarkAsConverted(log._id)}
+                          className="px-2 py-1 bg-primary/10 text-primary border border-primary/20 rounded hover:bg-primary/20 active:scale-[0.98] transition-all text-[10px] font-semibold"
+                        >
+                          Mark Converted
+                        </button>
+                      ) : (
+                        <span className="text-[10px] text-success font-semibold flex items-center justify-end gap-1">
+                          <CheckCircle className="h-3.5 w-3.5" /> Converted (₹{log.conversionValue || 100})
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -34,3 +34,8 @@ export const getCampaignAnalysis = async (id) => {
   const response = await axiosInstance.get(`/api/campaigns/${id}/analysis`);
   return response.data;
 };
+
+export const convertCampaignLog = async (logId, conversionValue = 100) => {
+  const response = await axiosInstance.post(`/api/campaigns/logs/${logId}/convert`, { conversionValue });
+  return response.data;
+};
