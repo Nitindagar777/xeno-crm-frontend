@@ -1,6 +1,30 @@
 import axios from 'axios';
 
-const apiURL = import.meta.env.VITE_API_URL || '';
+const getApiUrl = () => {
+  let url = import.meta.env.VITE_API_URL || '';
+  
+  if (typeof window !== 'undefined' && window.location) {
+    const { hostname, protocol } = window.location;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    
+    // If we are in production (not localhost) but the configured URL points to localhost (or is blank),
+    // override it to use the dynamic production api subdomain.
+    const isUrlLocalhost = url.includes('localhost') || url.includes('127.0.0.1');
+    
+    if (!isLocalhost && (isUrlLocalhost || !url)) {
+      if (hostname.startsWith('frontend.')) {
+        url = `${protocol}//${hostname.replace('frontend.', 'api.')}`;
+      } else {
+        url = `${protocol}//api.${hostname}`;
+      }
+    } else if (isLocalhost && !url) {
+      url = `${protocol}//${hostname}:5000`;
+    }
+  }
+  return url;
+};
+
+const apiURL = getApiUrl();
 
 const axiosInstance = axios.create({
   baseURL: apiURL,
