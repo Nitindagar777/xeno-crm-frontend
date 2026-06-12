@@ -5,6 +5,7 @@ import { getCampaign, getCampaignStats, getCampaignLogs, getCampaignAnalysis, co
 import usePolling from '../hooks/usePolling';
 import Badge from '../components/ui/Badge';
 import Spinner from '../components/ui/Spinner';
+import Modal from '../components/ui/Modal';
 import { formatCurrency, formatDate, formatDateRelative, formatDateTime, formatPercentage } from '../utils/formatters';
 import {
   ArrowLeft,
@@ -106,19 +107,30 @@ export default function CampaignDetail() {
     }
   }, [statsRes, logsRes]);
 
-  const handleMarkAsConverted = async (logId) => {
+  const [convertModalOpen, setConvertModalOpen] = useState(false);
+  const [convertLogId, setConvertLogId] = useState(null);
+  const [conversionVal, setConversionVal] = useState('100');
+
+  const handleMarkAsConverted = (logId) => {
+    setConvertLogId(logId);
+    setConversionVal('100');
+    setConvertModalOpen(true);
+  };
+
+  const handleConfirmConvert = async () => {
+    if (!convertLogId) return;
+    const val = parseFloat(conversionVal);
+    if (isNaN(val) || val <= 0) {
+      toast.error("Please enter a valid numeric value.");
+      return;
+    }
+    
     try {
-      const inputVal = window.prompt("Enter conversion value (INR):", "100");
-      if (inputVal === null) return;
-      const val = parseFloat(inputVal);
-      if (isNaN(val) || val <= 0) {
-        toast.error("Please enter a valid numeric value.");
-        return;
-      }
-      
-      const res = await convertCampaignLog(logId, val);
+      const res = await convertCampaignLog(convertLogId, val);
       if (res.success) {
         toast.success("Conversion registered!");
+        setConvertModalOpen(false);
+        setConvertLogId(null);
         refetchStats();
         refetchLogs();
         queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] });
@@ -495,6 +507,55 @@ export default function CampaignDetail() {
           </div>
         </div>
       )}
+
+      {/* Conversion Modal Card */}
+      <Modal
+        isOpen={convertModalOpen}
+        onClose={() => setConvertModalOpen(false)}
+        title="Attribute Purchase Conversion"
+        size="sm"
+        footer={
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setConvertModalOpen(false)}
+              className="px-3.5 py-1.5 border border-border bg-surface text-text-secondary hover:text-text-primary rounded-lg transition-colors text-xs font-semibold"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirmConvert}
+              className="px-4 py-1.5 bg-primary text-white hover:bg-primary-dark rounded-lg active:scale-[0.98] transition-all text-xs font-semibold"
+            >
+              Confirm
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-xs text-text-secondary leading-relaxed">
+            Enter the transaction amount (INR) generated from this communication customer response. This updates the campaign metrics and analytics logs.
+          </p>
+          <div className="space-y-1.5">
+            <label htmlFor="conversionValueInput" className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
+              Conversion Value (INR)
+            </label>
+            <div className="relative">
+              <input
+                id="conversionValueInput"
+                type="number"
+                min="1"
+                step="any"
+                value={conversionVal}
+                onChange={(e) => setConversionVal(e.target.value)}
+                className="input-field pl-8 text-xs w-full"
+                placeholder="100"
+                autoFocus
+              />
+              <span className="absolute left-3.5 top-3.5 text-text-muted text-xs font-semibold">₹</span>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
