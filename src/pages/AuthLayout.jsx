@@ -65,7 +65,7 @@ export default function AuthLayout() {
       </div>
 
       {/* Right panel - Form container */}
-      <div className="w-full lg:w-[55%] h-full flex items-center justify-center p-8 bg-surface relative overflow-y-auto">
+      <div className="w-full lg:w-[55%] h-full flex items-center justify-center p-8 bg-surface relative overflow-y-auto no-scrollbar">
         <Link 
           to="/" 
           className="absolute top-6 right-6 z-20 flex items-center space-x-2 text-xs text-text-secondary hover:text-primary bg-surface-elevated hover:bg-surface-elevated/80 border border-border px-3 py-1.5 rounded-lg transition-all duration-200"
@@ -74,7 +74,7 @@ export default function AuthLayout() {
           <span>Home</span>
         </Link>
 
-        <div className="w-full max-w-md relative min-h-[550px] flex flex-col justify-center py-8">
+        <div className="w-full max-w-md relative min-h-[500px] flex flex-col justify-center py-4">
           <AnimatePresence mode="wait">
             <Outlet />
           </AnimatePresence>

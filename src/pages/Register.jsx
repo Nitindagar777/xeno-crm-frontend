@@ -164,14 +164,14 @@ export default function Register() {
       initial="initial"
       animate="animate"
       exit="exit"
-      className="w-full space-y-6"
+      className="w-full space-y-4"
     >
       <motion.div variants={childRegisterVariants} className="space-y-2">
         <h3 className="text-2xl font-bold text-text-primary tracking-tight">Create Account</h3>
         <p className="text-sm text-text-secondary">Sign up to begin orchestrating targeted campaigns.</p>
       </motion.div>
 
-      <form onSubmit={handleSubmit} className="space-y-3.5">
+      <form onSubmit={handleSubmit} className="space-y-2.5">
         <motion.div variants={childRegisterVariants} className="space-y-1">
           <label className="text-xs font-semibold text-text-secondary">Full Name</label>
           <div className="relative">
@@ -249,7 +249,7 @@ export default function Register() {
           <Button
             type="submit"
             variant="primary"
-            className="w-full py-3.5 mt-3"
+            className="w-full py-2.5 mt-2"
             loading={loading}
           >
             Register
@@ -267,7 +267,7 @@ export default function Register() {
       </motion.div>
 
       <motion.div variants={childRegisterVariants} className="flex justify-center w-full">
-        <div id="googleSignInDiv" className="w-full min-h-[44px] flex justify-center"></div>
+        <div id="googleSignInDiv" className="w-full min-h-[40px] flex justify-center"></div>
       </motion.div>
 
       <motion.div variants={childRegisterVariants} className="text-center">
