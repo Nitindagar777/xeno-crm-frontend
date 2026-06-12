@@ -44,7 +44,7 @@ export default function Login() {
           googleInitialized = true;
         }
         const btn = document.getElementById("googleSignInDiv");
-        if (btn) {
+        if (btn && btn.children.length === 0) {
           window.google.accounts.id.renderButton(btn, {
             theme: "outline",
             size: "large",
@@ -115,16 +115,18 @@ export default function Login() {
   };
 
   const childLoginVariants = {
-    initial: { y: 12, opacity: 0 },
+    initial: { x: 120, y: 120, opacity: 0 },
     animate: { 
+      x: 0, 
       y: 0, 
       opacity: 1, 
-      transition: { ease: 'easeOut', duration: 0.3 } 
+      transition: { ease: 'easeOut', duration: 0.45 } 
     },
     exit: { 
-      y: -12, 
+      x: 120, 
+      y: 120, 
       opacity: 0, 
-      transition: { ease: 'easeIn', duration: 0.2 } 
+      transition: { ease: 'easeInOut', duration: 0.25 } 
     }
   };
 
@@ -195,7 +197,7 @@ export default function Login() {
       </motion.div>
 
       <motion.div variants={childLoginVariants} className="flex justify-center w-full">
-        <div id="googleSignInDiv" className="w-full min-h-[44px] flex justify-center"></div>
+        <div id="googleSignInDiv" className="w-full h-[44px] flex justify-center"></div>
       </motion.div>
 
       <motion.div variants={childLoginVariants} className="text-center">
