@@ -115,18 +115,16 @@ export default function Login() {
   };
 
   const childLoginVariants = {
-    initial: { x: 120, y: 120, opacity: 0 },
+    initial: { y: 12, opacity: 0 },
     animate: { 
-      x: 0, 
       y: 0, 
       opacity: 1, 
-      transition: { type: 'spring', stiffness: 120, damping: 14 } 
+      transition: { ease: 'easeOut', duration: 0.3 } 
     },
     exit: { 
-      x: 120, 
-      y: 120, 
+      y: -12, 
       opacity: 0, 
-      transition: { ease: 'easeInOut', duration: 0.25 } 
+      transition: { ease: 'easeIn', duration: 0.2 } 
     }
   };
 
