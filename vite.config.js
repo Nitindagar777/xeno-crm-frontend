@@ -13,4 +13,9 @@ export default defineConfig({
       },
     },
   },
+  esbuild: {
+    supported: {
+      'destructuring': true
+    }
+  }
 })
