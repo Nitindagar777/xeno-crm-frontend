@@ -26,11 +26,21 @@ export default function Sidebar() {
     { name: 'Message History', path: '/history', icon: History }
   ];
 
-  const simulatorUrl = `${
-    window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-      ? 'http://localhost:5001'
-      : 'https://api.oopsverse.cloud'
-  }/?userId=${user?._id || ''}`;
+  const getSimulatorUrl = () => {
+    const { hostname, protocol } = window.location;
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1';
+    
+    if (isLocalhost) {
+      return `http://${hostname}:5001`;
+    }
+    
+    if (hostname.startsWith('frontend.')) {
+      return `${protocol}//${hostname.replace('frontend.', 'channel.')}`;
+    }
+    return `${protocol}//channel.${hostname}`;
+  };
+
+  const simulatorUrl = `${getSimulatorUrl()}/?userId=${user?._id || ''}`;
 
   const avatarBgColor = getAvatarColor(user?.name || '');
   const initials = getInitials(user?.name || '');
