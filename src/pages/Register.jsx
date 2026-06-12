@@ -147,7 +147,7 @@ export default function Register() {
       x: 0, 
       y: 0, 
       opacity: 1, 
-      transition: { ease: 'easeOut', duration: 0.45 } 
+      transition: { type: 'spring', stiffness: 120, damping: 14 } 
     },
     exit: { 
       x: 120, 
